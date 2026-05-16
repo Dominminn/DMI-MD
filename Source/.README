@@ -1,0 +1,108 @@
+DMI-MD Implementation in LAMMPS
+Developed by Jiseok Oh and Yoosang Son
+2026 M-Degign Lab @KAIST
+
+# 1. Setting domain.cpp and domain.h
+To export time-averaved ensemble charge density, grid.cpp should be used as a LAMMPS class.
+
+We use grid class developed in earlier DFT-CES QM/MM mean field studies.
+Our simulation is based on grid class in LAMMPS 11Aug17 version in https://github.com/SeungJay/DFT-CES/tree/main/DFT-CES_MD
+which is directly imported as grid.cpp and grid.h
+
+In domain.h, add these lines:
+
+  class Grid *grid;
+  void set_grid(int, char **); 
+
+Also, in domain.cpp, add these lines in the constructor: 
+ 
+  char **args2 = new char*[8];
+  grid = NULL;
+  args2[0] = (char *) "empty";
+  args2[1] = (char *) "yes";
+  args2[2] = (char *) "5";
+  args2[3] = (char *) "empty";
+  args2[4] = (char *) "empty";
+  args2[5] = (char *) "empty";
+  args2[6] = (char *) "empty";
+  args2[7] = (char *) "empty";
+  set_grid(8,args2);
+  delete [] args2;
+
+and in the destructor:
+  
+  delete grid;
+
+domain.cpp should include grid.h
+  
+  #include "grid.h"
+
+
+Or, grid class can be automatically patched by the patch file provided in the link. 
+Compile LAMMPS with these files.
+
+# 2. Grid Parsing and Cube Saving
+Using the grid class provided, fix_cubesave stores accumulated charge density during the simulation, 
+and grid.cpp time averages and saves the final rho.cube. 
+
+For ordinary molecules and ions, fix arguments are fix_name group_ID cubesave supercell_factor cubeID (any string)
+
+fix              h2oGrid h2o cubesave 81 1 h2ocube
+fix              ionGrid ion cubesave 81 0 ioncube
+grid             ./empty85.cube yes 2 ion.cube h2o.cube
+
+For tip4p water molecules, fix arguments are fix_name group_ID cubesave supercell_factor cubeID tip4p typeO typeH theta blen qdist.
+typeO/H are types of O/H atoms, theta is HOH angle in degrees, blen is the O-H bond length(in angstroms, probably), and qdist is O-M(massless site) length.
+
+fix              ionGrid ion cubesave 81 0 ioncube   
+fix              h2oGrid t4p cubesave 81 2 tip4p 2 1 104.52 0.975 0.156
+grid             ./empty85.cube yes 2 ion.cube t4p.cube
+
+When tip4p is specified, the location of M site is computed by cubesave.cpp
+
+# 3. Running DMI-IMD simulation
+DMI-IMD routine is implemented in LAMMPS via fix_dmiimd.cpp 
+
+Datafile requirement:
+- Atom ID arrangement: {real atoms} -> {slab atoms} -> {image atoms}
+- ID(i, image) - ID(i, real) = N for all i 
+
+LAMMPS input:
+- fix argument: a_1, b_1, c_1, a_2, b_2, c_2, x_ag, y_ag, N(spacing), multiplier, numpermol
+- fix argument for tip4p: a_1, b_1, c_1, a_2, b_2, c_2, x_ag, y_ag, N(spacing), multiplier, tip4p, typeO theta blen qdist.
+- Top mirror c_1 - exp(a_1-b_1*z), Hollow mirror c_2 - exp(a_2 - b_2*z)
+- Honeycomb hexagonal plane wave interpolation between two mirrors. 
+- multiplier = -1.0 when interslab potential is directly fitted from binding curve. 
+- multiplier = 0.0 for ions. 
+- Exapmle input lines:
+
+fix h2oimage h2os dmiimd 12.01085951 1.546811985 8.610247221 8.318773804 1.080549146 8.610247221 4.2285459840 4.395561901 11423 -1.0 3
+fix h2oimage h2os dmiimd 12.01085951 1.546811985 8.610247221 8.318773804 1.080549146 8.610247221 4.2285459840 4.395561901 11423 -1.0 tip4p 2 104.52 0.975 0.156
+
+- Example printouts in the output file of LAMMPS:
+
+#### DMI-IMD: Simulation Information for group h2os ####
+- Top mirror: -exp(12.010860 - 1.546812*z) + 8.610247 and Hollow mirror: -exp(8.318774 - 1.080549*z) + 8.610247
+ - Force subtraction with group h2os weight -1.000000
+####
+#### DMI-IMD: Simulation Information for group ions ####
+- Top mirror: -exp(12.010860 - 1.546812*z) + 8.610247 and Hollow mirror: -exp(8.318774 - 1.080549*z) + 8.610247
+ - No force subtraction with group ions
+####
+#### DMI-IMD: Cubefile Saving Information ####
+- supercell factor = 81
+- cubefile ID      = 0
+#### DMI-IMD: Cubefile Saving Information ####
+- supercell factor = 81
+- cubefile ID      = 1
+#### DMI-IMD: Grid File Info ####
+- Grid file has been parsed: ./empty85.cube
+- # of atoms in grid: 16
+- # of grid points: 72 80 1152
+- grid spacing: 0.070494 0.073259 0.073785 Angs
+grid will be saved in ion.cube
+grid will be saved in h2o.cube
+
+
+# 3. Analysis
+edlanal2.py performs post-processing of LAMMPS trajectory code. MDAnalysis installation is required.
