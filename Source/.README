@@ -1,5 +1,5 @@
 DMI-MD Implementation in LAMMPS
-Developed by Jiseok Oh and Yoosang Son
+Developed by Jiseok Oh, Yoosang Son, and Hyungjun Kim
 2026 M-Degign Lab @KAIST
 
 # 1. Setting domain.cpp and domain.h
