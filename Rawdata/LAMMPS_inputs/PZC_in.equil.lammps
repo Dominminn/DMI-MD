@@ -1,0 +1,102 @@
+units            real
+atom_style       full
+boundary         p p f
+dielectric       1 
+special_bonds    lj/coul 0.0 0.0 0.0
+pair_style       hybrid/overlay lj/charmm/coul/long/opt 12 13 buck 13
+bond_style       harmonic  
+angle_style      harmonic  
+dihedral_style   none
+improper_style   none
+kspace_style     pppm 0.0001  
+kspace_modify    slab 3.0 
+processors       * * 1 map cart
+
+read_data        ${statein}
+#read_restart    32ions.restart
+
+# MD LJ parameters
+pair_coeff       1 1 lj/charmm/coul/long/opt 0.0 1.0
+pair_coeff       1 2 lj/charmm/coul/long/opt 0.0 2.07535
+pair_coeff       2 2 lj/charmm/coul/long/opt 0.1020 3.188
+pair_coeff       1 3 lj/charmm/coul/long/opt 0.0 1.80365
+pair_coeff       2 3 lj/charmm/coul/long/opt 0.052845 2.897595
+pair_coeff       3 3 lj/charmm/coul/long/opt 0.0273782 2.60719
+
+# Buckingham
+pair_coeff       3 4 buck 48860.180861 0.363165696631 174
+pair_coeff       2 4 buck 17575.409214 0.339692 2407.482035
+pair_coeff       1 4 buck 4528.852166 0.340596 285.721858
+
+# Images
+pair_coeff       4 4  lj/charmm/coul/long/opt 0.0 1.0
+pair_coeff       4 5  lj/charmm/coul/long/opt 0.0 1.0
+pair_coeff       4 6  lj/charmm/coul/long/opt 0.0 1.0
+pair_coeff       4 7  lj/charmm/coul/long/opt 0.0 1.0
+pair_coeff       1 5 lj/charmm/coul/long/opt 0.0 1.0
+pair_coeff       2 5 lj/charmm/coul/long/opt 0.0 1.0
+pair_coeff       3 5 lj/charmm/coul/long/opt 0.0 1.0
+pair_coeff       5 5 lj/charmm/coul/long/opt 0.0 1.0
+pair_coeff       5 6 lj/charmm/coul/long/opt 0.0 1.0
+pair_coeff       5 7 lj/charmm/coul/long/opt 0.0 1.0
+pair_coeff       1 6 lj/charmm/coul/long/opt 0.0 1.0
+pair_coeff       2 6 lj/charmm/coul/long/opt 0.0 1.0
+pair_coeff       3 6 lj/charmm/coul/long/opt 0.0 1.0
+pair_coeff       6 6 lj/charmm/coul/long/opt 0.0 1.0
+pair_coeff       6 7 lj/charmm/coul/long/opt 0.0 1.0
+pair_coeff       1 7 lj/charmm/coul/long/opt 0.0 1.0
+pair_coeff       2 7 lj/charmm/coul/long/opt 0.0 1.0
+pair_coeff       3 7 lj/charmm/coul/long/opt 0.0 1.0
+pair_coeff       7 7 lj/charmm/coul/long/opt 0.0 1.0
+pair_modify      table 0
+
+group            mm type 1 2 3 
+group            h2o type 1 2 
+group            image type 5 6 7 
+group            ion type 3
+group            hw type 1
+group            ow type 2
+group            h2os type 1 2 5 6  
+group            ions type 3 7
+group            dumpgroup type 1 2 3 4 
+group            total type 1 2 3 5 6 7 
+neighbor         2.0 multi
+neigh_modify     delay 0 every 1 check yes
+neigh_modify     exclude molecule/intra image
+set              type 1 charge  0.417
+set              type 2 charge -0.834
+set              type 5 charge -0.417
+set              type 6 charge  0.834
+compute          tempMobile mm temp
+
+thermo_style     custom etotal c_tempMobile ke pe ebond eangle evdwl ecoul elong press 
+thermo_modify	 line multi
+thermo	         ${thermoevery}
+timestep         1.0
+
+fix              wallhw hw wall/reflect zlo 8.678
+fix              wallow ow wall/reflect zlo 8.778
+fix              wallion ion wall/reflect zlo 8.578
+fix              wallionhi ions wall/harmonic zhi 40.0 2.5 1.0 2.0
+fix              wallhi mm wall/harmonic zhi 70.0 2.5 1.0 2.0 
+
+fix              h2oimage h2os dmiimd 9.89123638109243 1.26355836226 8.79724712439 8.98470734093706 1.14505008385 8.79724712439 4.228545984 4.395561901 14796 -1.0 3
+fix              ionimage ions dmiimd 9.89123638109243 1.26355836226 8.79724712439 8.98470734093706 1.14505008385 8.79724712439 4.228545984 4.395561901 14796 0.0 1
+
+fix              mmmom mm momentum 1 linear 1 1 0 angular
+fix              shakeH h2o shake 0.00001 1000 500 b 1 a 1
+
+reset_timestep   ${startstep}
+fix              equil mm nvt temp 300 300 100
+dump             dum dumpgroup custom 5000 ${segment}.lammpstrj id type xu yu zu vx vy vz fx fy fz q
+dump_modify      dum first no
+run              ${runsteps}
+unfix            equil
+undump           dum
+unfix            shakeH
+unfix            mmmom
+unfix            h2oimage
+unfix            ionimage
+write_data       ${stateout}
+write_restart    ${restartout}
+
