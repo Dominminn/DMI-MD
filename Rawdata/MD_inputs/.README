@@ -1,5 +1,0 @@
-DMI-MD MD Part Simulation
-
-Example dafafiles of PZC, 4/8/12 Na+ and F- ions.
-dmi_md.pbs file for execution, 
-Vcal.sh for calculating potential from created cube file.
